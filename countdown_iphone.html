@@ -513,7 +513,40 @@
         0%, 100% { transform: scaleY(1); }
         50%      { transform: scaleY(.35); }
     }
+/* Mensaje cada 10 medusas */
+.milestone {
+    position: fixed;
+    left: 50%;
+    top: 24%;
+    z-index: 40;
+    transform: translateX(-50%) scale(.6);
+    opacity: 0;
+    padding: 12px 22px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,158,203,.45);
+    background: rgba(5, 14, 27, .82);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 0 30px rgba(255,111,176,.35);
+    color: #fff;
+    font-size: clamp(16px, 4vw, 26px);
+    font-weight: 800;
+    letter-spacing: .06em;
+    white-space: nowrap;
+    pointer-events: none;
+}
 
+.milestone.show {
+    animation: milestonePop 2.4s ease forwards;
+}
+
+@keyframes milestonePop {
+    0%   { opacity: 0; transform: translateX(-50%) scale(.6); }
+    12%  { opacity: 1; transform: translateX(-50%) scale(1.12); }
+    22%  { transform: translateX(-50%) scale(1); }
+    80%  { opacity: 1; transform: translateX(-50%) scale(1); }
+    100% { opacity: 0; transform: translateX(-50%) scale(.9) translateY(-12px); }
+}
     /* Footer */
 
     footer {
@@ -751,7 +784,7 @@
                 <span>comidas</span>
                 <span class="counter-number" id="jellyCount">0</span>
             </div>
-
+            <div class="milestone" id="milestoneMsg" aria-live="polite">¡ÑAM DELICIOSO! 😋</div>
 
             <div class="jelly jelly-1" style="left:8%; top:18%; --jelly-glow:rgba(255,111,176,.62);">
                 <svg viewBox="0 0 40 55" fill="none">
@@ -957,6 +990,18 @@
         const turtle = document.getElementById("turtleRig");
         const counter = document.getElementById("jellyCounter");
         const countEl = document.getElementById("jellyCount");
+        const milestone = document.getElementById("milestoneMsg");
+        const FRASES = [
+    "¡ÑAM DELICIOSO! 😋",
+    "¡LAS EXTINGO EN BREVES! 🤤",
+    "¡MÁS MEDUSAS POLFAVOL! 🤤",
+    "¡TOY HAMBRIENTA! 🐢",
+    "¡NI JUANA EN NAVIDAD COME TANTO!",
+    "¿NO TE PARECE MUCHO YA?",
+    "¿EN SERIO VAS A SEGUIR JUGANDO?",
+    "¿SOY TORTUGA O BALLENA?"
+];
+let fraseIndex = 0;
         const jellies = Array.from(document.querySelectorAll(".jelly"));
     
         const MIN_Y = 70;
@@ -1015,13 +1060,21 @@
                 }
             });
         }
-    
+        function showMilestone() {
+    milestone.textContent = FRASES[fraseIndex % FRASES.length];
+    fraseIndex++;
+
+    milestone.classList.remove("show");
+    void milestone.offsetWidth;
+    milestone.classList.add("show");
+}
         function eat(j) {
             j.dataset.hidden = "1";
             j.classList.add("eaten");
     
             eatenCount++;
             countEl.textContent = eatenCount;
+            if (eatenCount % 10 === 0) showMilestone();
     
             counter.classList.remove("pop");
             void counter.offsetWidth;
