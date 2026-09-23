@@ -1041,25 +1041,34 @@ let fraseIndex = 0;
         }
     
         function checkCollisions(now) {
-            if (now - lastCollisionCheck < 60) return;
-            lastCollisionCheck = now;
-    
-            const laneRect = lane.getBoundingClientRect();
-            const mouthX = x + turtleW * .83;
-            const mouthY = y + turtleH * .50;
-    
-            jellies.forEach(j => {
-                if (j.classList.contains("eaten") || j.dataset.hidden === "1") return;
-    
-                const r = j.getBoundingClientRect();
-                const cx = r.left - laneRect.left + r.width * .5;
-                const cy = r.top - laneRect.top + r.height * .38;
-    
-                if (Math.hypot(mouthX - cx, mouthY - cy) < Math.max(turtleW * .25, 34)) {
-                    eat(j);
-                }
-            });
-        }
+    if (now - lastCollisionCheck < 60) return;
+    lastCollisionCheck = now;
+
+    const laneRect = lane.getBoundingClientRect();
+
+    // Cuerpo completo de la tortuga
+    const tLeft   = x;
+    const tRight  = x + turtleW;
+    const tTop    = y;
+    const tBottom = y + turtleH;
+
+    jellies.forEach(j => {
+        if (j.classList.contains("eaten") || j.dataset.hidden === "1") return;
+
+        const r = j.getBoundingClientRect();
+        const jLeft   = r.left - laneRect.left;
+        const jRight  = r.right - laneRect.left;
+        const jTop    = r.top - laneRect.top;
+        const jBottom = r.bottom - laneRect.top;
+
+        // ¿Se superponen los dos rectángulos?
+        const overlap =
+            tLeft < jRight && tRight > jLeft &&
+            tTop < jBottom && tBottom > jTop;
+
+        if (overlap) eat(j);
+    });
+}
         function showMilestone() {
     milestone.textContent = FRASES[fraseIndex % FRASES.length];
     fraseIndex++;
