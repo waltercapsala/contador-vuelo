@@ -509,6 +509,85 @@
         100% { transform: translateY(-90px); opacity: 0; }
     }
 
+    /* =========================
+   TIBURÓN
+   ========================= */
+
+.shark {
+    position: absolute;
+    width: clamp(130px, 16vw, 190px);
+    height: auto;
+    z-index: 4;
+    pointer-events: auto;
+    cursor: pointer;
+    user-select: none;
+    touch-action: none;
+    transform-origin: center center;
+    filter: drop-shadow(0 0 8px rgba(0, 0, 0, .45));
+}
+
+.shark svg {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.shark .shark-body {
+    fill: #62727d;
+    stroke: #2f393f;
+    stroke-width: 2;
+    stroke-linejoin: round;
+}
+
+.shark .shark-belly {
+    fill: #d3d9dc;
+}
+
+.shark .shark-fin {
+    fill: #4a5860;
+    stroke: #2f393f;
+    stroke-width: 2;
+    stroke-linejoin: round;
+}
+
+.shark .shark-eye {
+    fill: #111;
+}
+.shark-dead-eyes,
+.shark-blood {
+    display: none;
+}
+
+.shark-dead-eyes path {
+    stroke: #111;
+    stroke-width: 3;
+    stroke-linecap: round;
+}
+
+.shark-blood circle {
+    fill: #b52b2b;
+}
+
+.shark-dead .shark-eye {
+    display: none;
+}
+
+.shark-dead .shark-dead-eyes,
+.shark-dead .shark-blood {
+    display: block;
+}
+
+.shark .shark-mouth {
+    stroke: #202428;
+    stroke-width: 2;
+    fill: none;
+    stroke-linecap: round;
+}
+
+.shark .shark-tooth {
+    fill: #f4f1df;
+}
+
     /* Tortuga: ahora puede nadar por toda la pantalla */
     .turtle-rig {
         position: absolute;
@@ -525,6 +604,28 @@
         touch-action: none;
         will-change: transform;
     }
+
+.shark-dead {
+    animation: sharkDeath .9s ease forwards;
+    pointer-events: none;
+}
+
+@keyframes sharkDeath {
+    0% {
+        opacity: 1;
+        transform: scale(1) rotate(0deg);
+    }
+
+    35% {
+        opacity: 1;
+        transform: scale(1.08) rotate(-5deg);
+    }
+
+    100% {
+        opacity: 0;
+        transform: scale(.2) rotate(20deg);
+    }
+}
 
     .turtle-rig.dragging {
         cursor: grabbing;
@@ -585,6 +686,21 @@
         0%, 100% { transform: scaleY(1); }
         50%      { transform: scaleY(.35); }
     }
+
+    .shark .shark-tail {
+    transform-box: view-box;
+    transform-origin: 50px 56px;
+    animation: shark-swim .7s ease-in-out infinite alternate;
+}
+
+@keyframes shark-swim {
+    from { transform: rotate(-7deg); }
+    to   { transform: rotate(7deg); }
+}
+
+.shark-dead .shark-tail {
+    animation: none;
+}
 /* Mensaje cada 10 medusas */
 .milestone {
     position: fixed;
@@ -1081,6 +1197,14 @@ let fraseIndex = 0;
         const jellies = Array.from(document.querySelectorAll(".jelly"));
         let venomJelly = null;
         let venomRespawnTimer = null;
+        let shark = null;
+        let sharkActive = false;
+        let totalJelliesEaten = 0;
+        let sharkX = 0;
+    let sharkY = 0;
+    let sharkTargetX = 0;
+    let sharkTargetY = 0;
+    let sharkMoveTimer = null;
     
         const MIN_Y = 70;
         let areaW = 0, areaH = 0;
@@ -1168,6 +1292,258 @@ let fraseIndex = 0;
     killVenomByClick();
 });
 }
+function createShark() {
+    if (document.querySelector(".shark")) return;
+
+    shark = document.createElement("div");
+    shark.className = "shark";
+
+    shark.innerHTML = `
+    <svg viewBox="0 0 220 110" fill="none">
+
+<!-- COLA -->
+<g class="shark-tail">
+    <path class="shark-fin"
+        d="M46 55 C34 42 24 26 12 8
+           C30 12 46 24 58 42 Z" />
+    <path class="shark-fin"
+        d="M44 57 C34 68 27 80 21 96
+           C36 88 50 78 58 66 Z" />
+</g>
+
+<!-- ALETA DORSAL -->
+<path class="shark-fin"
+    d="M96 37
+       C104 28 106 16 104 4
+       C118 8 136 18 142 34 Z" />
+
+<!-- ALETA ANAL -->
+<path class="shark-fin"
+    d="M74 71 C68 79 62 84 55 86
+       C64 82 70 77 82 72 Z" />
+
+<!-- CUERPO PRINCIPAL -->
+<path class="shark-body"
+    d="M36 56
+       C60 46 84 34 120 32
+       C150 31 178 42 206 58
+       C180 66 150 80 118 80
+       C90 80 62 68 36 58 Z" />
+
+<!-- PANZA -->
+<path class="shark-belly"
+    d="M56 62
+       C88 72 130 74 160 68
+       C176 65 190 62 203 59
+       C180 66 150 80 118 80
+       C92 80 68 70 56 62 Z" />
+
+<!-- ALETA PECTORAL -->
+<path class="shark-fin"
+    d="M144 68 C136 82 122 93 104 99
+       C114 89 118 79 122 71 Z" />
+
+<!-- OJO -->
+<circle class="shark-eye" cx="178" cy="48" r="3.5" />
+
+<!-- OJOS EN X AL MORIR -->
+<g class="shark-dead-eyes">
+    <path d="M173 43 L183 53" />
+    <path d="M183 43 L173 53" />
+</g>
+
+<!-- BRANQUIAS -->
+<path class="shark-mouth" d="M148 47 C151 54 151 60 148 66" />
+<path class="shark-mouth" d="M155 45 C158 52 158 58 155 64" />
+<path class="shark-mouth" d="M162 44 C165 50 165 55 162 61" />
+
+<!-- BOCA -->
+<path class="shark-mouth" d="M201 59 C189 65 175 66 163 62" />
+
+<!-- DIENTES -->
+<path class="shark-tooth" d="M191 62 L193 68 L196 60 Z" />
+<path class="shark-tooth" d="M182 64 L184 70 L187 63 Z" />
+<path class="shark-tooth" d="M173 65 L175 70 L178 64 Z" />
+
+<!-- SANGRE CARICATURESCA -->
+<g class="shark-blood">
+    <circle cx="180" cy="76" r="3" />
+    <circle cx="172" cy="83" r="2.2" />
+    <circle cx="165" cy="77" r="1.7" />
+</g>
+
+</svg>
+    `;
+
+    shark.style.left = "50%";
+    shark.style.top = "45%";
+    
+    shark.addEventListener("pointerdown", function(e) {
+    e.stopPropagation();
+    e.preventDefault();
+    killShark();
+});
+    lane.appendChild(shark);
+    sharkActive = true;
+
+    requestAnimationFrame(() => {
+    moveShark();
+});
+}   
+function moveShark() {
+    if (!shark || !sharkActive) return;
+
+    const laneRect = lane.getBoundingClientRect();
+    const sharkRect = shark.getBoundingClientRect();
+
+    const maxX = Math.max(0, laneRect.width - sharkRect.width);
+    const maxY = Math.max(MIN_Y, laneRect.height - sharkRect.height);
+
+    sharkTargetX = Math.random() * maxX;
+    sharkTargetY = MIN_Y + Math.random() * Math.max(0, maxY - MIN_Y);
+
+    shark.style.transition =
+        "left 3.5s ease-in-out, top 3.5s ease-in-out";
+
+    shark.style.left = sharkTargetX + "px";
+    shark.style.top = sharkTargetY + "px";
+
+    clearTimeout(sharkMoveTimer);
+
+    sharkMoveTimer = setTimeout(() => {
+        moveShark();
+    }, 3500);
+}
+
+function killShark() {
+    if (!shark || !sharkActive) return;
+
+    sharkActive = false;
+
+    clearTimeout(sharkMoveTimer);
+    sharkMoveTimer = null;
+
+    const deadShark = shark;
+
+    // Ojos en X
+    deadShark.classList.add("shark-dead");
+
+    // Mensaje
+    milestone.textContent = "¡TIBURÓN ELIMINADO! 🦈";
+    milestone.classList.remove("show");
+    void milestone.offsetWidth;
+    milestone.classList.add("show");
+
+    setTimeout(() => {
+        if (deadShark.parentNode) {
+            deadShark.remove();
+        }
+
+        if (shark === deadShark) {
+            shark = null;
+        }
+    }, 900);
+}
+
+function checkSharkCollision() {
+    if (!shark || !sharkActive || !turtle) return;
+
+    const sharkRect = shark.getBoundingClientRect();
+    const turtleRect = turtle.getBoundingClientRect();
+
+    const collision =
+        sharkRect.left < turtleRect.right &&
+        sharkRect.right > turtleRect.left &&
+        sharkRect.top < turtleRect.bottom &&
+        sharkRect.bottom > turtleRect.top;
+
+    if (collision) {
+        sharkHitsTurtle();
+    }
+}
+
+function sharkHitsTurtle() {
+    if (!shark || !sharkActive) return;
+
+    sharkActive = false;
+
+    clearTimeout(sharkMoveTimer);
+    sharkMoveTimer = null;
+
+    milestone.textContent = "¡TE COMIÓ EL TIBURÓN! 🦈";
+    milestone.classList.remove("show");
+    void milestone.offsetWidth;
+    milestone.classList.add("show");
+
+    turtle.style.opacity = "0";
+    turtle.style.pointerEvents = "none";
+    setTimeout(() => {
+    resetGame();
+}, 1800);
+}
+
+function resetGame() {
+    // Detener cualquier movimiento del tiburón
+    clearTimeout(sharkMoveTimer);
+    sharkMoveTimer = null;
+
+    // Eliminar tiburón
+    if (shark && shark.parentNode) {
+        shark.remove();
+    }
+
+    shark = null;
+    sharkActive = false;
+
+    // Reiniciar contadores
+    eatenCount = 0;
+    totalJelliesEaten = 0;
+
+    countEl.textContent = "0";
+
+    venomEatenCount = 0;
+    venomCountEl.textContent = "0";
+
+    // Reiniciar tortuga
+    turtle.style.opacity = "";
+    turtle.style.pointerEvents = "";
+
+    turtle.classList.remove("infected");
+    turtle.classList.remove("chewing");
+    turtle.classList.remove("dragging");
+
+    // Volver la tortuga a su posición inicial
+    placed = false;
+    dragging = false;
+    dragPointerId = null;
+
+    // Reiniciar posición
+    measure();
+
+    // Reactivar todas las medusas normales
+    jellies.forEach(j => {
+        j.classList.remove("eaten");
+        j.style.opacity = "";
+        j.style.pointerEvents = "";
+    });
+
+    // Eliminar medusa venenosa actual
+    if (venomJelly && venomJelly.parentNode) {
+        venomJelly.remove();
+    }
+
+    venomJelly = null;
+
+    clearTimeout(venomRespawnTimer);
+    venomRespawnTimer = null;
+
+    // Volver a permitir que aparezca la venenosa
+    scheduleVenomRespawn();
+
+    // Ocultar mensaje después del reinicio
+    milestone.classList.remove("show");
+}
+
         function startVenomCycle() {
     setInterval(() => {
         if (!venomJelly) {
@@ -1335,7 +1711,25 @@ function eatVenom() {
     
             eatenCount++;
             countEl.textContent = eatenCount;
-            if (eatenCount % 10 === 0) showMilestone();
+            totalJelliesEaten++;
+
+            if (totalJelliesEaten % 20 === 0 && !sharkActive) {
+
+milestone.textContent = "BABY SHARK TUTURURU 🦈";
+
+milestone.classList.remove("show");
+void milestone.offsetWidth;
+milestone.classList.add("show");
+
+setTimeout(() => {
+    if (!sharkActive) {
+        createShark();
+    }
+}, 500);
+}
+if (eatenCount % 10 === 0 && eatenCount % 20 !== 0) {
+    showMilestone();
+}
     
             counter.classList.remove("pop");
             void counter.offsetWidth;
@@ -1407,7 +1801,16 @@ function eatVenom() {
         turtle.addEventListener("pointerup", endDrag);
         turtle.addEventListener("pointercancel", endDrag);
         turtle.addEventListener("touchstart", e => e.preventDefault(), { passive: false });
-    
+        
+        function sharkCollisionLoop() {
+    if (sharkActive) {
+        checkSharkCollision();
+    }
+
+    requestAnimationFrame(sharkCollisionLoop);
+}
+
+sharkCollisionLoop();
         window.addEventListener("resize", measure);
         startVenomCycle();
         measure();
