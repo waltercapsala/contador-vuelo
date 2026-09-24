@@ -491,7 +491,7 @@
 .turtle-rig.infected .turtle {
     filter:
         sepia(.75)
-        saturate(1.7)
+        saturate(1.7)   
         hue-rotate(35deg)
         brightness(.82);
 }
@@ -1405,10 +1405,11 @@ document.querySelectorAll(".jelly:not(.jelly-venom)").forEach(j => {
 let fraseIndex = 0;
         const jellies = Array.from(document.querySelectorAll(".jelly"));
         let venoms = [];
-        const MAX_VENOMS = 3;          // cuántas a la vez
-        const VENOM_LIFE_MIN = 5000;   // duran entre 5 y 9 segundos
-        const VENOM_LIFE_RANGE = 4000;
         let venomRespawnTimer = null;
+        const IS_MOBILE = window.matchMedia("(max-width: 600px)").matches;
+        const MAX_VENOMS = IS_MOBILE ? 1 : 3;   // en celular, solo una a la vez
+        const VENOM_LIFE_MIN = 5000;
+        const VENOM_LIFE_RANGE = 4000;
         let shark = null;
         let sharkActive = false;
         let totalJelliesEaten = 0;
@@ -1737,12 +1738,24 @@ function createVenomJelly() {
     venom.className = "jelly jelly-venom";
     venom.innerHTML = jellySVG();
     venom.style.setProperty("--jelly-glow", "rgba(122, 130, 54, .95)");
-    venom.style.left = (4 + Math.random() * 90) + "%";
-    venom.style.top = (10 + Math.random() * 80) + "%";
+    let left, top, tries = 0;
+do {
+    left = 4 + Math.random() * 90;
+    top = 10 + Math.random() * 80;
+    tries++;
+} while (
+    tries < 10 &&
+    Math.abs(left / 100 * areaW - (x + turtleW / 2)) < 160 &&
+    Math.abs(top / 100 * areaH - (y + turtleH / 2)) < 160
+);
+venom.style.left = left + "%";
+venom.style.top = top + "%";
     venom.style.opacity = "0";
 
     lane.appendChild(venom);
     venoms.push(venom);
+    // durante el primer segundo no se puede comer por error
+setTimeout(() => { venom.dataset.armed = "1"; }, 1200);
 
     // aparece con fundido
     requestAnimationFrame(() => { venom.style.opacity = "1"; });
@@ -1772,7 +1785,7 @@ function scheduleVenomRespawn() {
     venomRespawnTimer = setTimeout(() => {
         createVenomJelly();
         scheduleVenomRespawn();
-    }, 1500 + Math.random() * 2500);   // una nueva cada 1.5 a 4 segundos
+    }, IS_MOBILE ? 4000 + Math.random() * 4000 : 1500 + Math.random() * 2500);
 }
 
 function startVenomCycle() {
@@ -1880,11 +1893,15 @@ function updateTurtleSize() {
         if (overlap) eat(j);
     });
     venoms.slice().forEach(v => {
+    if (v.dataset.armed !== "1") return;
+
     const r = v.getBoundingClientRect();
-    const vLeft   = r.left - laneRect.left;
-    const vRight  = r.right - laneRect.left;
-    const vTop    = r.top - laneRect.top;
-    const vBottom = r.bottom - laneRect.top;
+    const padX = (r.right - r.left) * 0.25;
+    const padY = (r.bottom - r.top) * 0.25;
+    const vLeft   = r.left - laneRect.left + padX;
+    const vRight  = r.right - laneRect.left - padX;
+    const vTop    = r.top - laneRect.top + padY;
+    const vBottom = r.bottom - laneRect.top - padY;
 
     const venomOverlap =
         tLeft < vRight && tRight > vLeft &&
@@ -1930,7 +1947,7 @@ if (eatenCount % 10 === 0 && eatenCount % 20 !== 0) {
 }
 
 if (growCount === BIG_AT) {
-    say("¡TORTUGA GIGANTE! AHORA PUEDE COMERSE AL TIBURÓN 🐢💪");
+    say("¡TORTUGA GIGANTE!🐢💪");
 }
     
             counter.classList.remove("pop");
@@ -2013,9 +2030,9 @@ if (growCount === BIG_AT) {
 }
 
 sharkCollisionLoop();
-        window.addEventListener("resize", measure);
-        startVenomCycle();
-        measure();
+    window.addEventListener("resize", measure);
+    measure();
+    startVenomCycle();
     })();
     </script>
 <script>
@@ -2051,8 +2068,8 @@ sharkCollisionLoop();
         // cuántos de cada tipo: [dibujo, cantidad, ancho mínimo, ancho máximo]
         const SMALL = window.innerWidth < 600;
         const GROUPS = [
-            [CLOWN, 4, 36, 54],
-            [TANG,  3, 42, 62]
+            [CLOWN, 2, 36, 54],
+            [TANG,  1, 42, 62]
         ];
     
         GROUPS.forEach(([svg, count, wMin, wMax]) => {
@@ -2084,5 +2101,7 @@ sharkCollisionLoop();
         });
     })();
     </script>
+</body>
+</html>
 </body>
 </html>
