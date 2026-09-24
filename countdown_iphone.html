@@ -638,8 +638,10 @@
         position: absolute;
         left: 0;
         top: 0;
-        width: clamp(80px, 9vw, 115px);
-        height: calc(clamp(80px, 9vw, 115px) * 80 / 130);
+        --base: clamp(80px, 9vw, 115px);
+            width: calc(var(--base) * var(--grow, 1));
+            height: calc(var(--base) * var(--grow, 1) * 80 / 130);
+            transition: width .4s ease, height .4s ease;
         z-index: 4;
         cursor: grab;
         touch-action: none;
@@ -775,6 +777,21 @@
     0%, 100% { transform: translateY(0) scaleY(1); }
     50%      { transform: translateY(-4px) scaleY(.6); }
 }
+/* tortuga gigante: brilla dorada */
+.turtle-rig.mighty {
+    filter: drop-shadow(0 0 14px rgba(255, 214, 90, .75));
+}
+
+/* el tiburón es devorado */
+.shark-eaten {
+    animation: sharkEaten .6s ease-in forwards;
+    pointer-events: none;
+}
+
+@keyframes sharkEaten {
+    0%   { opacity: 1; transform: scale(1) rotate(0deg); }
+    100% { opacity: 0; transform: scale(.08) rotate(-25deg); }
+}
 
 /* Mensaje cada 10 medusas */
 .milestone {
@@ -809,6 +826,52 @@
     22%  { transform: translateX(-50%) scale(1); }
     80%  { opacity: 1; transform: translateX(-50%) scale(1); }
     100% { opacity: 0; transform: translateX(-50%) scale(.9) translateY(-12px); }
+}
+/* Peces decorativos */
+.fish {
+    position: absolute;
+    left: 0;
+    z-index: 2;              /* debajo de medusas (3) y tortuga (4) */
+    width: var(--w, 46px);
+    pointer-events: none;
+    opacity: .9;
+    will-change: transform;
+    animation: fishCross var(--dur, 30s) linear var(--delay, 0s) infinite;
+}
+
+.fish.rtl { animation-direction: reverse; }
+
+.fish-bob {
+    animation: fishBob 3s ease-in-out infinite alternate;
+}
+
+.fish svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+    transform: scaleX(var(--dir, 1));   /* -1 = mira a la izquierda */
+}
+
+.fish-tail {
+    transform-box: fill-box;
+    transform-origin: 100% 50%;
+    animation: tailWag .45s ease-in-out infinite alternate;
+}
+
+@keyframes fishCross {
+    from { transform: translateX(-25vw); }
+    to   { transform: translateX(125vw); }
+}
+
+@keyframes fishBob {
+    from { transform: translateY(-6px); }
+    to   { transform: translateY(6px); }
+}
+
+@keyframes tailWag {
+    from { transform: rotate(-12deg); }
+    to   { transform: rotate(12deg); }
 }
     /* Footer */
 
@@ -911,14 +974,10 @@
             bottom: max(58px, env(safe-area-inset-bottom, 14px) + 40px);
         }
 
-        .turtle-rig {
-    width: clamp(75px, 20vw, 100px);
-    height: calc(clamp(75px, 20vw, 100px) * 80 / 130);
-}
+        .turtle-rig { --base: clamp(75px, 20vw, 100px); }
 
 .shark {
     width: clamp(170px, 46vw, 220px);
-}
 }
 
         .jelly-counter {
@@ -944,7 +1003,7 @@
         .eyebrow { margin-bottom: 10px; }
         .destination { margin-bottom: 17px; }
         .date-info { margin-top: 14px; }
-        .turtle-rig { width: 80px; height: calc(80px * 80 / 130); }
+        .turtle-rig { --base: 80px; }
         .shark { width: 160px; }
         .jelly { width: 27px; height: 38px; }
     }
@@ -1345,7 +1404,10 @@ document.querySelectorAll(".jelly:not(.jelly-venom)").forEach(j => {
 ];
 let fraseIndex = 0;
         const jellies = Array.from(document.querySelectorAll(".jelly"));
-        let venomJelly = null;
+        let venoms = [];
+        const MAX_VENOMS = 3;          // cuántas a la vez
+        const VENOM_LIFE_MIN = 5000;   // duran entre 5 y 9 segundos
+        const VENOM_LIFE_RANGE = 4000;
         let venomRespawnTimer = null;
         let shark = null;
         let sharkActive = false;
@@ -1366,32 +1428,10 @@ let fraseIndex = 0;
         let dragOffsetX = 0, dragOffsetY = 0;
         let lastCollisionCheck = 0;
         let eatenCount = 0;
+        let growCount = 0;
         let venomEatenCount = 0;
     
-        function createVenomJelly() {
-    if (venomJelly && document.body.contains(venomJelly)) return;
-
-    const venom = document.createElement("div");
-    venom.className = "jelly jelly-venom";
-
-    venom.innerHTML = jellySVG();
-venom.style.setProperty("--jelly-glow", "rgba(122, 130, 54, .95)");
-
-    const left = 4 + Math.random() * 90;
-    const top = 10 + Math.random() * 80;
-
-    venom.style.left = left + "%";
-    venom.style.top = top + "%";
-
-    lane.appendChild(venom);
-    venomJelly = venom;
-
-    venom.addEventListener("pointerdown", function(e) {
-    e.stopPropagation();
-    e.preventDefault();
-    killVenomByClick();
-});
-}
+        
 function createShark() {
     if (document.querySelector(".shark")) return;
 
@@ -1557,9 +1597,47 @@ function checkSharkCollision() {
         sharkRect.top < turtleRect.bottom &&
         sharkRect.bottom > turtleRect.top;
 
-    if (collision) {
-        sharkHitsTurtle();
+        if (collision)  {
+        if (growCount >= BIG_AT) {
+            turtleEatsShark();
+        } else {
+            sharkHitsTurtle();
+        }
     }
+}
+function turtleEatsShark() {
+    if (!shark || !sharkActive) return;
+
+    sharkActive = false;
+    clearTimeout(sharkMoveTimer);
+    sharkMoveTimer = null;
+
+    const eaten = shark;
+
+    // congelar al tiburón donde está
+    const lr = lane.getBoundingClientRect();
+    const sr = eaten.getBoundingClientRect();
+    eaten.style.transition = "none";
+    eaten.style.left = (sr.left - lr.left) + "px";
+    eaten.style.top = (sr.top - lr.top) + "px";
+    eaten.classList.add("shark-eaten");
+
+    say("¡SUFICIENTE CON EL TIBURONCIN! 🐢🦈");
+
+    turtle.classList.remove("chewing");
+    void turtle.offsetWidth;
+    turtle.classList.add("chewing");
+    setTimeout(() => turtle.classList.remove("chewing"), 1000);
+
+    setTimeout(() => {
+    if (eaten.parentNode) eaten.remove();
+    if (shark === eaten) shark = null;
+
+    // digestión: la tortuga vuelve a su tamaño normal
+    growCount = 0;
+    updateTurtleSize();
+    say("¡QUÉ PANZADA! TORTUGA CHIQUITA DE NUEVO");
+}, 700);
 }
 
 function sharkHitsTurtle() {
@@ -1590,6 +1668,7 @@ shark.classList.add("shark-chewing");
 }, 1800);
 }
 
+
 function resetGame() {
     // Detener cualquier movimiento del tiburón
     clearTimeout(sharkMoveTimer);
@@ -1605,12 +1684,14 @@ function resetGame() {
 
     // Reiniciar contadores
     eatenCount = 0;
+    growCount = 0;
     totalJelliesEaten = 0;
 
     countEl.textContent = "0";
 
     venomEatenCount = 0;
     venomCountEl.textContent = "0";
+    updateTurtleSize();
 
     // Reiniciar tortuga
     turtle.style.opacity = "";
@@ -1635,12 +1716,9 @@ function resetGame() {
         j.style.pointerEvents = "";
     });
 
-    // Eliminar medusa venenosa actual
-    if (venomJelly && venomJelly.parentNode) {
-        venomJelly.remove();
-    }
-
-    venomJelly = null;
+     // Eliminar todas las venenosas
+     venoms.forEach(v => { if (v.parentNode) v.remove(); });
+    venoms = [];
 
     clearTimeout(venomRespawnTimer);
     venomRespawnTimer = null;
@@ -1652,87 +1730,100 @@ function resetGame() {
     milestone.classList.remove("show");
 }
 
-        function startVenomCycle() {
-    setInterval(() => {
-        if (!venomJelly) {
-            createVenomJelly();
-        }
-    }, 5000);
+function createVenomJelly() {
+    if (venoms.length >= MAX_VENOMS) return;
+
+    const venom = document.createElement("div");
+    venom.className = "jelly jelly-venom";
+    venom.innerHTML = jellySVG();
+    venom.style.setProperty("--jelly-glow", "rgba(122, 130, 54, .95)");
+    venom.style.left = (4 + Math.random() * 90) + "%";
+    venom.style.top = (10 + Math.random() * 80) + "%";
+    venom.style.opacity = "0";
+
+    lane.appendChild(venom);
+    venoms.push(venom);
+
+    // aparece con fundido
+    requestAnimationFrame(() => { venom.style.opacity = "1"; });
+
+    venom.addEventListener("pointerdown", function (e) {
+        e.stopPropagation();
+        e.preventDefault();
+        killVenomByClick(venom);
+    });
+
+    // intermitente: se desvanece sola
+    setTimeout(() => removeVenom(venom),
+        VENOM_LIFE_MIN + Math.random() * VENOM_LIFE_RANGE);
 }
-function killVenomByClick() {
-    if (!venomJelly) return;
 
-    const venom = venomJelly;
-    venomJelly = null;
-
+function removeVenom(venom) {
+    const i = venoms.indexOf(venom);
+    if (i === -1) return false;          // ya fue eliminada
+    venoms.splice(i, 1);
     venom.classList.add("dead");
-    venomEatenCount++;
-    venomCountEl.textContent = venomEatenCount;
-    milestone.textContent = "MUERE BASURA 🤢";
-milestone.classList.remove("show");
-void milestone.offsetWidth;
-milestone.classList.add("show");
-
-    setTimeout(() => {
-        if (venom.parentNode) {
-            venom.remove();
-        }
-    }, 500);
-
-    scheduleVenomRespawn();
+    setTimeout(() => { if (venom.parentNode) venom.remove(); }, 500);
+    return true;
 }
+
 function scheduleVenomRespawn() {
     clearTimeout(venomRespawnTimer);
-
-    const delay = 2500 + Math.random() * 2500;
-
     venomRespawnTimer = setTimeout(() => {
         createVenomJelly();
-    }, delay);
+        scheduleVenomRespawn();
+    }, 1500 + Math.random() * 2500);   // una nueva cada 1.5 a 4 segundos
 }
-function eatVenom() {
-    if (!venomJelly) return;
 
-    const venom = venomJelly;
-    venomJelly = null;
+function startVenomCycle() {
+    scheduleVenomRespawn();
+}
 
-    venom.classList.add("dead");
+function killVenomByClick(venom) {
+    if (!removeVenom(venom)) return;
+    venomEatenCount++;
+    venomCountEl.textContent = venomEatenCount;
+    say("MUERE BASURA 🤢");
+}
 
-    // Reiniciar contador
-    eatenCount = 0;
-    countEl.textContent = "0";
+function eatVenom(venom) {
+    if (!removeVenom(venom)) return;
 
-    // Mostrar mensaje
-    milestone.textContent = "DIU ESTABA HORRIBLE 🤢";
-    milestone.classList.remove("show");
-    void milestone.offsetWidth;
-    milestone.classList.add("show");
+    // pierde tamaño y poder, pero el contador de comidas NO se toca
+    growCount = 0;
+    updateTurtleSize();
 
-    // Infectar tortuga
+    say("DIU ESTABA HORRIBLE 🤢");
+
+    // infectar tortuga
     turtle.classList.add("infected");
+    setTimeout(() => turtle.classList.remove("infected"), 3000);
 
-    setTimeout(() => {
-        turtle.classList.remove("infected");
-    }, 3000);
-
-    // Animación de comer
+    // animación de comer
     turtle.classList.remove("chewing");
     void turtle.offsetWidth;
     turtle.classList.add("chewing");
+    setTimeout(() => turtle.classList.remove("chewing"), 1000);
+}
 
-    setTimeout(() => {
-        turtle.classList.remove("chewing");
-    }, 1000);
 
-    // Eliminar venenosa
-    setTimeout(() => {
-        if (venom.parentNode) {
-            venom.remove();
-        }
-    }, 500);
+const BIG_AT = 30;      // medusas para poder comerse al tiburón
+const GROW_STEP = 0.06; // cuánto crece por medusa
+const MAX_GROW = 2.8;   // tamaño máximo (x veces el original)
 
-    // Programar reaparición
-    scheduleVenomRespawn();
+function say(text) {
+    milestone.textContent = text;
+    milestone.classList.remove("show");
+    void milestone.offsetWidth;
+    milestone.classList.add("show");
+}
+
+function updateTurtleSize() {
+    const grow = Math.min(MAX_GROW, 1 + growCount * GROW_STEP);
+    turtle.style.setProperty("--grow", grow);
+    turtle.classList.toggle("mighty", growCount >= BIG_AT);
+    measure();
+    setTimeout(measure, 450);
 }
 
         function measure() {
@@ -1788,9 +1879,8 @@ function eatVenom() {
 
         if (overlap) eat(j);
     });
-    if (venomJelly && !venomJelly.classList.contains("dead")) {
-    const r = venomJelly.getBoundingClientRect();
-
+    venoms.slice().forEach(v => {
+    const r = v.getBoundingClientRect();
     const vLeft   = r.left - laneRect.left;
     const vRight  = r.right - laneRect.left;
     const vTop    = r.top - laneRect.top;
@@ -1800,10 +1890,8 @@ function eatVenom() {
         tLeft < vRight && tRight > vLeft &&
         tTop < vBottom && tBottom > vTop;
 
-    if (venomOverlap) {
-        eatVenom();
-    }
-}
+    if (venomOverlap) eatVenom(v);
+});
 }
         function showMilestone() {
     milestone.textContent = FRASES[fraseIndex % FRASES.length];
@@ -1818,8 +1906,10 @@ function eatVenom() {
             j.classList.add("eaten");
     
             eatenCount++;
+            growCount++;
             countEl.textContent = eatenCount;
             totalJelliesEaten++;
+            updateTurtleSize();
 
             if (totalJelliesEaten % 20 === 0 && !sharkActive) {
 
@@ -1837,6 +1927,10 @@ setTimeout(() => {
 }
 if (eatenCount % 10 === 0 && eatenCount % 20 !== 0) {
     showMilestone();
+}
+
+if (growCount === BIG_AT) {
+    say("¡TORTUGA GIGANTE! AHORA PUEDE COMERSE AL TIBURÓN 🐢💪");
 }
     
             counter.classList.remove("pop");
@@ -1924,6 +2018,71 @@ sharkCollisionLoop();
         measure();
     })();
     </script>
-
+<script>
+    (function () {
+        const lane = document.getElementById("seaLane");
+        if (!lane) return;
+    
+        const CLOWN = `
+        <svg viewBox="0 0 60 34" fill="none">
+            <path class="fish-tail" d="M13 17 L1 6 Q5 17 1 28 Z" fill="#ff7a1a" stroke="#1a1a1a" stroke-width="1" stroke-linejoin="round"/>
+            <path d="M22 7 Q32 -1 42 7 Z" fill="#ff7a1a" stroke="#1a1a1a" stroke-width="1" stroke-linejoin="round"/>
+            <ellipse cx="31" cy="17" rx="21" ry="11" fill="#ff7a1a" stroke="#1a1a1a" stroke-width="1"/>
+            <ellipse cx="15" cy="17" rx="1.8" ry="5.5" fill="#fff" stroke="#1a1a1a" stroke-width=".8"/>
+            <ellipse cx="28" cy="17" rx="3"   ry="10"  fill="#fff" stroke="#1a1a1a" stroke-width=".8"/>
+            <ellipse cx="43" cy="17" rx="2.6" ry="8"   fill="#fff" stroke="#1a1a1a" stroke-width=".8"/>
+            <path d="M30 23 Q26 30 34 29 Q34 26 33 23 Z" fill="#ff9a45" stroke="#1a1a1a" stroke-width=".8" stroke-linejoin="round"/>
+            <circle cx="47" cy="14" r="2" fill="#111"/>
+            <circle cx="47.6" cy="13.4" r=".7" fill="#fff"/>
+        </svg>`;
+    
+        const TANG = `
+        <svg viewBox="0 0 60 40" fill="none">
+            <path class="fish-tail" d="M14 20 L1 7 Q6 20 1 33 Z" fill="#ffd23c" stroke="#7a5a00" stroke-width="1" stroke-linejoin="round"/>
+            <path d="M18 8 Q32 -3 46 8 Z" fill="#1f5fc4" stroke="#12315f" stroke-width="1" stroke-linejoin="round"/>
+            <path d="M22 32 Q32 41 42 32 Z" fill="#1f5fc4" stroke="#12315f" stroke-width="1" stroke-linejoin="round"/>
+            <ellipse cx="32" cy="20" rx="22" ry="13" fill="#2f7be0" stroke="#12315f" stroke-width="1"/>
+            <path d="M16 22 Q26 9 45 15 Q33 18 28 28 Q20 28 16 22 Z" fill="#0f1c3d"/>
+            <ellipse cx="36" cy="27" rx="4" ry="2.4" fill="#ffd23c"/>
+            <circle cx="48" cy="17" r="2.4" fill="#fff"/>
+            <circle cx="48.6" cy="17" r="1.1" fill="#111"/>
+        </svg>`;
+    
+        // cuántos de cada tipo: [dibujo, cantidad, ancho mínimo, ancho máximo]
+        const SMALL = window.innerWidth < 600;
+        const GROUPS = [
+            [CLOWN, 4, 36, 54],
+            [TANG,  3, 42, 62]
+        ];
+    
+        GROUPS.forEach(([svg, count, wMin, wMax]) => {
+            for (let i = 0; i < count; i++) {
+                const fish = document.createElement("div");
+                fish.className = "fish";
+    
+                const inner = document.createElement("div");
+                inner.className = "fish-bob";
+                inner.innerHTML = svg;
+                fish.appendChild(inner);
+    
+                const dur = 22 + Math.random() * 22;               // 22 a 44 s por cruce
+                const w = (wMin + Math.random() * (wMax - wMin)) * (SMALL ? .75 : 1);
+                const rtl = Math.random() < 0.5;
+    
+                fish.style.setProperty("--w", w + "px");
+                fish.style.setProperty("--dur", dur + "s");
+                fish.style.setProperty("--delay", (-Math.random() * dur) + "s"); // ya están nadando al cargar
+                fish.style.setProperty("--dir", rtl ? -1 : 1);
+                fish.style.top = (14 + Math.random() * 72) + "%";
+                if (rtl) fish.classList.add("rtl");
+    
+                inner.style.animationDelay = (-Math.random() * 3) + "s";
+                inner.style.animationDuration = (2.4 + Math.random() * 2) + "s";
+    
+                lane.appendChild(fish);
+            }
+        });
+    })();
+    </script>
 </body>
 </html>
